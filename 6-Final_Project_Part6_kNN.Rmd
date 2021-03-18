@@ -1,0 +1,246 @@
+---
+title: "DSC630 Final Project - Crime Analysis - Part6"
+author: "Amie Davis"
+date: "22 July, 2020"
+output: 
+  word_document: default
+---
+# Data Sources:
+Uniform Crime Reporting Program Data: National Incident-Based Reporting System, [United States], 2016;
+United States Federal Bureau of Investigation;
+Inter-university Consortium for Political and Social Research (ICPSR), University of Michigan;
+https://www.icpsr.umich.edu/icpsrweb/NACJD/NIBRS/
+\newline\
+Geodetic Data for US Cities:
+https://simplemaps.com/data/us-cities
+
+# References:
+https://www.latlong.net
+D. Kahle and H. Wickham. ggmap: Spatial Visualization with ggplot2. The R Journal, 5(1), 144-161. URL http://journal.r-project.org/archive/2013-1/kahle-wickham.pdf
+
+
+# Load Libraries
+
+```{r libs, message=FALSE}
+library(readr)
+library(dplyr)
+library(gdata)
+library(caTools)
+library(class)
+library(tidyr)
+library(ggplot2)
+```
+
+# 1. Prepare Data
+
+## a) Import the Data
+```{r load, message=FALSE}
+
+# Load Cleaned data from Part1
+crime_data <- read_csv("Data/crime_offenses_top6.csv")
+
+str(crime_data)
+```
+
+## b) Remove Unnecessary Columns
+
+```{r drop2, include=TRUE}
+
+# The following fields are not needed for visualizations and will be removed.
+
+  crime_data[ ,c(
+"X1",
+"X1_1",
+"ORI",    #character
+"INC_NUM",
+"VIC_INC_DATE",
+#"VICTIM_TYPE",
+"ACT_TYPE_OFFC",
+"ASSG_TYPE_OFFC",
+#"AGE_OF_VICTIM",
+#"SEX_OF_VICTIM",
+#"RACE_OF_VICTIM",
+#"ETHNIC_OF_VIC",
+#"VIC_RESIDENT",
+"ASSAULT_CIRC1",
+"ASSAULT_CIRC2",
+"JUST_HOM_CIRC",
+"INJURY_TYPE1",
+"INJURY_TYPE2",
+"INJURY_TYPE3",
+"INJURY_TYPE4",
+"INJURY_TYPE5",
+"NUM_RECS_PER_VICTIM",
+"VIC_INC_YEAR",
+#"VIC_INC_MONTH",
+"VIC_INC_DAY",
+#"VIC_INC_DOW",
+"NUM_STATE_CODE",
+"CITY",    #character
+#"STATE",
+#"POP_GROUP",
+#"CTRY_DIVISION",
+#"CTRY_REGION",
+#"AGENCY_IND",
+#"CORE_CITY",
+"FBI_OFFICE",
+"JUDICIAL_DIST",    #character
+#"CURRENT_POP1",
+"UCR_COUNTY_CD1",
+"MSA_CD1",
+"LAST_POP1",
+"FIPS_COUNTY1",    #character
+"city_ascii",
+"state_name",
+"county_fips",
+"county_name",
+"county_fips_all",
+"county_name_all",
+#"lat",
+#"lng",
+#"population",
+#"density",
+"source",
+"military",
+#"incorporated",
+#"timezone",
+#"ranking",
+"zips",
+"id"
+#"OFF_CODE"
+)] <- list(NULL)
+  
+head(crime_data)
+```
+
+## c) Convert NA Data to Unknown Category where applicable
+
+```{r na}
+crime_data$SEX_OF_VICTIM[is.na(crime_data$SEX_OF_VICTIM)] <- 'U'
+crime_data$RACE_OF_VICTIM[is.na(crime_data$RACE_OF_VICTIM)] <- 'U'
+crime_data$ETHNIC_OF_VIC[is.na(crime_data$ETHNIC_OF_VIC)] <- 'U'
+crime_data$VIC_RESIDENT[is.na(crime_data$VIC_RESIDENT)] <- 'U'
+crime_data$POP_GROUP[is.na(crime_data$POP_GROUP)] <- 0
+```
+
+## d) Limit to records with geodetic (lat/long) coordinates
+
+```{r geo}
+crime_data <- filter(crime_data, !is.na(lat))
+```
+
+## e) Exclude remaining records with NA values
+
+```{r data}
+#crime_data %>% drop_na()
+#crime_data <- na.omit(crime_data)
+#summary(crime_data)
+```
+
+## f) Convert categorical variables to factors and then numeric
+```{r convert}
+
+crime_data$VICTIM_TYPE <- factor(crime_data$VICTIM_TYPE)
+crime_data$SEX_OF_VICTIM <- factor(crime_data$SEX_OF_VICTIM)
+crime_data$RACE_OF_VICTIM <- factor(crime_data$RACE_OF_VICTIM)
+crime_data$ETHNIC_OF_VIC <- factor(crime_data$ETHNIC_OF_VIC)
+crime_data$VIC_RESIDENT <- factor(crime_data$VIC_RESIDENT)
+crime_data$VIC_INC_DOW <- factor(crime_data$VIC_INC_DOW)
+crime_data$STATE <- factor(crime_data$STATE)
+crime_data$POP_GROUP <- factor(crime_data$POP_GROUP)
+crime_data$CTRY_DIVISION <- factor(crime_data$CTRY_DIVISION)
+crime_data$CTRY_REGION <- factor(crime_data$CTRY_REGION)
+crime_data$AGENCY_IND <- factor(crime_data$AGENCY_IND)
+crime_data$CORE_CITY <- factor(crime_data$CORE_CITY)
+crime_data$incorporated <- factor(crime_data$incorporated)
+crime_data$timezone <- factor(crime_data$timezone)
+crime_data$OFF_CODE <- factor(crime_data$OFF_CODE)
+
+# Descriptive Statistics
+summary(crime_data)
+
+# Convert to numeric to compute distances
+# Add small amount of noise to reduce ties
+crime_data$VICTIM_TYPE <- jitter(as.numeric(crime_data$VICTIM_TYPE))
+crime_data$SEX_OF_VICTIM <- jitter(as.numeric(crime_data$SEX_OF_VICTIM))
+crime_data$RACE_OF_VICTIM <- jitter(as.numeric(crime_data$RACE_OF_VICTIM))
+crime_data$ETHNIC_OF_VIC <- jitter(as.numeric(crime_data$ETHNIC_OF_VIC))
+crime_data$VIC_RESIDENT <- jitter(as.numeric(crime_data$VIC_RESIDENT))
+crime_data$VIC_INC_DOW <- jitter(as.numeric(crime_data$VIC_INC_DOW))
+crime_data$STATE <- jitter(as.numeric(crime_data$STATE))
+crime_data$POP_GROUP <- jitter(as.numeric(crime_data$POP_GROUP))
+crime_data$CTRY_DIVISION <- jitter(as.numeric(crime_data$CTRY_DIVISION))
+crime_data$CTRY_REGION <- jitter(as.numeric(crime_data$CTRY_REGION))
+crime_data$AGENCY_IND <- jitter(as.numeric(crime_data$AGENCY_IND))
+crime_data$CORE_CITY <- jitter(as.numeric(crime_data$CORE_CITY))
+crime_data$incorporated <- jitter(as.numeric(crime_data$incorporated))
+crime_data$timezone <- jitter(as.numeric(crime_data$timezone))
+crime_data$OFF_CODE <- jitter(as.numeric(crime_data$OFF_CODE))
+```
+
+
+```{r}
+summary(crime_data)
+str(crime_data)
+```
+
+## d) Split the data set, randomly into test and train sets.
+```{r split2}
+split_off_set <- sample.split(crime_data$OFF_CODE,SplitRatio=0.7)
+train_off_set <- subset(crime_data, split_off_set=="TRUE")
+test_off_set <- subset(crime_data, split_off_set=="FALSE")
+```
+
+### Separate Labels
+Before running the data through a nearest neighbor model, we need to separate the labels from the data.
+
+```{r}
+train_off_labels <- train_off_set[,1, drop=TRUE]
+test_off_labels <- test_off_set[,1, drop=TRUE]
+train_off_data <- train_off_set[,3:4]
+test_off_data <- test_off_set[,3:4]
+```
+
+## d) Build kNN models with training dataset
+Now, we can build the models with the training sets, using a variety of k values.
+```{r}
+knn_off.3<- knn(train = train_off_data, test = test_off_data, cl = train_off_labels, k=3)
+knn_off.5<- knn(train = train_off_data, test = test_off_data, cl = train_off_labels, k=5)
+knn_off.10<- knn(train = train_off_data, test = test_off_data, cl = train_off_labels, k=10)
+```
+
+## e) Test kNN model with test dataset
+  
+```{r accuracy2}
+# Accuracy for offense model
+ACC_off.3 <- 100 * sum(round(test_off_labels,0) == round(as.numeric(as.character(knn_off.3,0)),0))/NROW(round(test_off_labels,0))
+ACC_off.5 <- 100 * sum(round(test_off_labels,0) == round(as.numeric(as.character(knn_off.5,0)),0))/NROW(round(test_off_labels,0))
+ACC_off.10 <- 100 * sum(round(test_off_labels,0) == round(as.numeric(as.character(knn_off.10,0)),0))/NROW(round(test_off_labels,0))
+```
+
+```{r accdf2}
+# Add accuracy values to a new data frame
+k <- c(3,5,10)
+ACC <- c(ACC_off.3, ACC_off.5, ACC_off.10)
+ACC_df <- data.frame(k, ACC, stringsAsFactors=FALSE)
+
+ACC_off.3
+ACC_off.5
+ACC_off.10
+```
+
+### Plot accuracy values
+
+```{r}
+# Convert data types for data frame
+ACC_df$k <- as.numeric(ACC_df$k)
+ACC_df$ACC <- as.numeric(ACC_df$ACC)
+
+ggplot(ACC_df, aes(x=k, y=ACC, col="light orange")) +
+  geom_point() +
+  geom_smooth() +
+  labs(title="kNN Model Accuracy Values", y="Accuracy") +
+    theme(legend.position = "none")
+```
+\newline\
+The best I will get with this model is around 84% accuracy with k=3 clusters.

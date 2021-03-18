@@ -1,0 +1,614 @@
+---
+title: "DSC630 Final Project - Crime Analysis - Part2"
+author: "Amie Davis"
+date: "28 June, 2020"
+output: 
+  word_document: default
+---
+# Data Sources:
+Uniform Crime Reporting Program Data: National Incident-Based Reporting System, [United States], 2016;
+United States Federal Bureau of Investigation;
+Inter-university Consortium for Political and Social Research (ICPSR), University of Michigan;
+https://www.icpsr.umich.edu/icpsrweb/NACJD/NIBRS/
+\newline\
+Geodetic Data for US Cities:
+https://simplemaps.com/data/us-cities
+
+# References:
+https://www.latlong.net
+D. Kahle and H. Wickham. ggmap: Spatial Visualization with ggplot2. The R Journal, 5(1), 144-161. URL http://journal.r-project.org/archive/2013-1/kahle-wickham.pdf
+
+
+# Load Libraries
+
+```{r libs, message=FALSE}
+library(readr)
+library(dplyr)
+library(ggmap)
+```
+
+# 1. Prepare Data
+
+## a) Import the Data
+```{r load, message=FALSE}
+
+# Load Cleaned data from Part1
+crime_data <- read_csv("Data/crime_top6_states.csv")
+
+#str(crime_data)
+```
+
+## b) Remove Unnecessary Columns
+
+```{r drop2, include=TRUE}
+
+# The following fields are not needed for visualizations and will be removed.
+
+#  crime_data[ ,c(
+#     "X1",
+#     "VIC_INC_DATE",
+#     "VICTIM_TYPE",
+#     "ASSG_TYPE_OFFC",
+#     "AGE_OF_VICTIM",
+#     "SEX_OF_VICTIM",
+#     "RACE_OF_VICTIM",
+#     "ETHNIC_OF_VIC",
+#     
+#     "INJURY_TYPE1",
+#     "INJURY_TYPE2",
+#     "INJURY_TYPE3",
+#     "INJURY_TYPE4",
+#     "INJURY_TYPE5",
+#  
+#     "VIC_RESIDENT",
+#     "NUM_RECS_PER_VICTIM",
+#     "VIC_INC_YEAR",
+#     "VIC_INC_MONTH",
+#     "VIC_INC_DAY",
+#     "VIC_INC_DOW",
+#     "NUM_STATE_CODE",
+#     "POP_GROUP",
+#     "CTRY_DIVISION",
+#     "CTRY_REGION",
+#     "AGENCY_IND",
+#     "CORE_CITY",
+#     "FBI_OFFICE",
+#     "JUDICIAL_DIST",
+#     "CURRENT_POP1",
+#     "UCR_COUNTY_CD1",
+#     "MSA_CD1",
+#     "LAST_POP1",
+#     "FIPS_COUNTY1",
+#     "Zip",
+#     
+#     "city_ascii",
+#     "state_name",
+#     "county_fips",
+#     "county_name",
+#     "county_fips_all",
+#     "county_name_all",
+#     "population",
+#     "density",
+#     "source",
+#     "military",
+#     "incorporated",
+#     "timezone",
+#     "ranking",
+#     "zips"
+#)] <- list(NULL)
+  
+#head(crime_data)
+```
+
+## c) Separate Offense Codes
+
+```{r offense, include=TRUE}
+
+# Create new df to include all offenses and their records
+off1_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE01))
+off2_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE02))
+off3_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE03))
+off4_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE04))
+off5_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE05))
+off6_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE06))
+off7_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$OFF_CODE07))
+
+names(off1_df)[names(off1_df) == "crime_data.OFF_CODE01"] <- "OFF_CODE"
+names(off2_df)[names(off2_df) == "crime_data.OFF_CODE02"] <- "OFF_CODE"
+names(off3_df)[names(off3_df) == "crime_data.OFF_CODE03"] <- "OFF_CODE"
+names(off4_df)[names(off4_df) == "crime_data.OFF_CODE04"] <- "OFF_CODE"
+names(off5_df)[names(off5_df) == "crime_data.OFF_CODE05"] <- "OFF_CODE"
+names(off6_df)[names(off6_df) == "crime_data.OFF_CODE06"] <- "OFF_CODE"
+names(off7_df)[names(off7_df) == "crime_data.OFF_CODE07"] <- "OFF_CODE"
+
+off_df <- rbind(off1_df, off2_df, off3_df, off4_df, off5_df, off6_df, off7_df) 
+
+head(off_df)
+```
+
+## d) Separate Aggrevated Assault Codes
+
+```{r aggr, include=TRUE}
+
+# Convert to cahracter
+crime_data$ASSAULT_CIRC1 <- as.character(crime_data$ASSAULT_CIRC1)
+crime_data$ASSAULT_CIRC2 <- as.character(crime_data$ASSAULT_CIRC2)
+
+# Create new df to include all Aggravated Assault/Homicide Circumstances and their records
+asst1_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$ASSAULT_CIRC1))
+asst2_df <- na.omit(data.frame(crime_data$ORI, crime_data$INC_NUM, crime_data$ASSAULT_CIRC2))
+
+names(asst1_df)[names(asst1_df) == "crime_data.ASSAULT_CIRC1"] <- "ASSAULT_CIRC"
+names(asst2_df)[names(asst2_df) == "crime_data.ASSAULT_CIRC2"] <- "ASSAULT_CIRC"
+
+asst_df <- rbind(asst1_df, asst2_df) 
+
+head(asst_df)
+
+```
+
+## e) Join Datasets
+
+```{r df_join, include=TRUE}
+
+# Remove prefix from keys to match
+names(off_df)[names(off_df) == "crime_data.ORI"] <- "ORI"
+names(off_df)[names(off_df) == "crime_data.INC_NUM"] <- "INC_NUM"
+#names(asst_df)[names(asst_df) == "crime_data.ORI"] <- "ORI"
+#names(asst_df)[names(asst_df) == "crime_data.INC_NUM"] <- "INC_NUM"
+
+# Join crime data with separate record for each offense
+joint_off_df <- right_join(crime_data, off_df, c("ORI", "INC_NUM"))
+#joint_all_df <- left_join(joint_off_df, asst_df, c("ORI", "INC_NUM"))
+
+# Remove extra offense columns
+  joint_off_df[ ,c(
+     "OFF_CODE01",
+     "OFF_CODE02",
+     "OFF_CODE03",
+     "OFF_CODE04",
+     "OFF_CODE05",
+     "OFF_CODE06",
+     "OFF_CODE07"
+)] <- list(NULL)
+
+head(joint_off_df)
+#summary(joint_off_df)
+
+# Output joined file for use in modeling
+write.csv(joint_off_df,"Data/crime_offenses.csv")
+
+```
+
+## f) Apply filters
+
+```{r jh_filter, include=TRUE}
+
+# Create subset to include only records marked as justifiable homicide
+just_hom_df <- filter(joint_off_df, OFF_CODE == "09C")
+
+summary(just_hom_df)
+# There are 101 incidents of justifiable homicide reported to UCR in 2016 for the top 6 states
+```
+
+```{r agg_filter, include=TRUE}
+
+# Create subset to include only records marked as aggravated assault
+agg_asst_df <- filter(joint_off_df, OFF_CODE == "13A")
+
+summary(agg_asst_df)
+#head(agg_asst_df)
+# There are 223,507 incidents of aggravated assaults reported to UCR in 2016 for the top 6 states
+```
+
+```{r act_filter, include=TRUE}
+
+# Create subset to include only records marked as investigation of suspicious activity
+act_type_df <- filter(joint_off_df, ACT_TYPE_OFFC == "7")
+
+summary(act_type_df)
+#head(act_type_df)
+# There are 1,522 incidents of investigation of suspicious activity reported to UCR in 2016 for the top 6 states
+```
+
+```{r thresh, include=TRUE}
+
+# Determine threshold for specific offense codes
+
+# Justifiable Homicide by State
+jh_state_df <- just_hom_df %>% group_by(STATE) %>% tally()
+jh_state_df
+
+# Aggrevated Assaults by State
+aa_state_df <- agg_asst_df %>% group_by(STATE) %>% tally()
+aa_state_df
+
+# Total Offenses Reported by State
+tot_state_df <- joint_off_df %>% group_by(STATE) %>% tally()
+tot_state_df
+
+
+# Justifiable Homicide by Population Group
+jh_pop_df <- just_hom_df %>% group_by(POP_GROUP) %>% tally()
+jh_pop_df
+
+# Aggrevated Assaults by Population Group
+aa_pop_df <- agg_asst_df %>% group_by(POP_GROUP) %>% tally()
+aa_pop_df
+
+# Total Offenses Reported by Population Group
+tot_pop_df <- joint_off_df %>% group_by(POP_GROUP) %>% tally()
+tot_pop_df
+
+head(just_hom_df)
+```
+
+# 2. Visualizations for Features of Concern
+
+\newline\
+Using ggmap to use Google maps to display geodetic information.  The API key is passed, but is hidden from Markdown.
+\newline
+
+```{r goog, include=FALSE}
+ggmap::register_google(key="AIzaSyC_xHA2f2uNcL0LdfRxlIH0dWTSWu88o3E")
+```
+
+## a) Tennessee
+
+```{r tn_plots, message=FALSE}
+
+# Create TN subset of all offense
+tn_df <- filter(joint_off_df, STATE == "TN")
+
+# Use Tennesee coordinates as center
+tn_map <- ggmap(get_googlemap(
+                  center = c(lon = -86.660156, lat = 35.860119),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+tn_map + 
+  
+  # Re-scale to focus on TN rectangle
+  scale_y_continuous(limits=c(34.5, 36.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = tn_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create TN subset of Justifiable Homicides
+tn_spec_df <- filter(joint_off_df, STATE == "TN" & (OFF_CODE == "09C"))
+
+# Build map
+tn_map + 
+  
+  # Re-scale to focus on TN rectangle
+  scale_y_continuous(limits=c(34.5, 36.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = tn_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="red",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Justifiable Homicides")
+
+
+# Create TN subset of Suspicious Activity Reporting
+tn_spec_df <- filter(joint_off_df, STATE == "TN" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+tn_map + 
+  
+  # Re-scale to focus on TN rectangle
+  scale_y_continuous(limits=c(34.5, 36.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = tn_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
+
+## b) Michigan
+
+```{r mi_plots, message=FALSE}
+
+# Create MI subset of all offense
+mi_df <- filter(joint_off_df, STATE == "MI")
+
+# Use Michigan coordinates as center
+mi_map <- ggmap(get_googlemap(
+                  center = c(lon = -84.506836, lat = 44.182205),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+mi_map + 
+  
+  # Re-scale to focus on MI rectangle
+  scale_y_continuous(limits=c(41.5, 47.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = mi_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create MI subset of Justifiable Homicides
+mi_spec_df <- filter(joint_off_df, STATE == "MI" & (OFF_CODE == "09C"))
+
+# Build map
+mi_map + 
+  
+  # Re-scale to focus on MI rectangle
+  scale_y_continuous(limits=c(41.5, 47.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = mi_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="red",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Justifiable Homicides")
+
+
+# Create MI subset of Suspicious Activity Reporting
+mi_spec_df <- filter(joint_off_df, STATE == "MI" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+mi_map + 
+  
+  # Re-scale to focus on MI rectangle
+  scale_y_continuous(limits=c(41.5, 47.5)) +
+  scale_x_continuous(limits=c(-90.5, -82)) +
+
+  # Add data points to the map
+  geom_point(data = mi_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
+
+## c) South Carolina
+
+```{r sc_plots, message=FALSE}
+
+# Create SC subset of all offense
+sc_df <- filter(joint_off_df, STATE == "SC")
+
+# Use South Carolina coordinates as center
+sc_map <- ggmap(get_googlemap(
+                  center = c(lon = -81.163727, lat = 33.836082),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+sc_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(32, 35.5)) +
+  scale_x_continuous(limits=c(-83.5, -78)) +
+
+  # Add data points to the map
+  geom_point(data = sc_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create SC subset of Justifiable Homicides
+sc_spec_df <- filter(joint_off_df, STATE == "SC" & (OFF_CODE == "09C"))
+
+# Build map
+sc_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(32, 35.5)) +
+  scale_x_continuous(limits=c(-83.5, -78)) +
+
+  # Add data points to the map
+  geom_point(data = sc_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="red",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Justifiable Homicides")
+
+
+# Create SC subset of Suspicious Activity Reporting
+sc_spec_df <- filter(joint_off_df, STATE == "SC" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+sc_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(32, 35.5)) +
+  scale_x_continuous(limits=c(-83.5, -78)) +
+
+  # Add data points to the map
+  geom_point(data = sc_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
+
+## d) Massachusetts
+
+```{r ma_plots, message=FALSE}
+
+# Create MA subset of all offense
+ma_df <- filter(joint_off_df, STATE == "MA")
+
+# Use Massachusetts coordinates as center
+ma_map <- ggmap(get_googlemap(
+                  center = c(lon = -71.382439, lat = 42.407211),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+ma_map + 
+  
+  # Re-scale to focus on MA rectangle
+  scale_y_continuous(limits=c(41.5, 43)) +
+  scale_x_continuous(limits=c(-74, -70)) +
+
+  # Add data points to the map
+  geom_point(data = ma_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create MA subset of Justifiable Homicides
+ma_spec_df <- filter(joint_off_df, STATE == "MA" & (OFF_CODE == "09C"))
+#summary(ma_spec_df)
+# There are were no Justifiable Homicides reported in MA for 2016.
+
+
+# Create MA subset of Suspicious Activity Reporting
+ma_spec_df <- filter(joint_off_df, STATE == "MA" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+ma_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(41.5, 43)) +
+  scale_x_continuous(limits=c(-74, -70)) +
+
+  # Add data points to the map
+  geom_point(data = ma_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
+
+## e) Ohio
+
+```{r oh_plots, message=FALSE}
+
+# Create OH subset of all offense
+oh_df <- filter(joint_off_df, STATE == "OH")
+
+# Use Ohio Carolina coordinates as center
+oh_map <- ggmap(get_googlemap(
+                  center = c(lon = -82.996216, lat = 40.367474),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+oh_map + 
+  
+  # Re-scale to focus on OH rectangle
+  scale_y_continuous(limits=c(38, 42)) +
+  scale_x_continuous(limits=c(-85, -80)) +
+
+  # Add data points to the map
+  geom_point(data = oh_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create OH subset of Justifiable Homicides
+oh_spec_df <- filter(joint_off_df, STATE == "OH" & (OFF_CODE == "09C"))
+#summary(oh_spec_df)
+# There are were no Justifiable Homicides reported in OH for 2016.
+
+
+# Create OH subset of Suspicious Activity Reporting
+oh_spec_df <- filter(joint_off_df, STATE == "OH" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+oh_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(38, 42)) +
+  scale_x_continuous(limits=c(-85, -80)) +
+
+  # Add data points to the map
+  geom_point(data = oh_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
+
+## f) Washington State
+
+```{r wa_plots, message=FALSE}
+
+# Create WA subset of all offense
+wa_df <- filter(joint_off_df, STATE == "WA")
+
+# Use Washington coordinates as center
+wa_map <- ggmap(get_googlemap(
+                  center = c(lon = -120.740135, lat = 47.751076),
+                  zoom = 6, scale = 2,
+                  maptype = "terrain",
+                  color="color"))
+
+# Build map
+wa_map + 
+  
+  # Re-scale to focus on SC rectangle
+  scale_y_continuous(limits=c(45.5, 49)) +
+  scale_x_continuous(limits=c(-124.5, -116.5)) +
+
+  # Add data points to the map
+  geom_point(data = wa_df, 
+             aes(x=lng, y=lat, color = OFF_CODE)) +
+  labs(x="Longitude", y="Latitude", title="Incidents By Offense") +
+  theme(legend.title = element_blank())
+
+
+# Create WA subset of Justifiable Homicides
+wa_spec_df <- filter(joint_off_df, STATE == "WA" & (OFF_CODE == "09C"))
+
+# Build map
+wa_map + 
+  
+  # Re-scale to focus on WA rectangle
+  scale_y_continuous(limits=c(45.5, 49)) +
+  scale_x_continuous(limits=c(-124.5, -116.5)) +
+
+  # Add data points to the map
+  geom_point(data = wa_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="red",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Justifiable Homicides")
+
+
+# Create WA subset of Suspicious Activity Reporting
+wa_spec_df <- filter(joint_off_df, STATE == "WA" & (ACT_TYPE_OFFC == "7"))
+
+# Build map
+wa_map + 
+  
+  # Re-scale to focus on WA rectangle
+  scale_y_continuous(limits=c(45.5, 49)) +
+  scale_x_continuous(limits=c(-124.5, -116.5)) +
+
+  # Add data points to the map
+  geom_point(data = wa_spec_df, 
+             aes(x=lng, y=lat, size=3),
+             color="yellow",
+             show.legend = FALSE) +
+  labs(x="Longitude", y="Latitude", title="Suspicious Activity Reporting")
+```
