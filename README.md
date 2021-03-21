@@ -14,5 +14,5 @@ Analyzes national crime data and developes models to predict the likelihood that
 - Part4_Binary_Models.ipynb
 - Part5_State_Models.ipynb
 - Part6_kNN.Rmd
-- Final Project - Milestone5 Presentation - DavisA.pptx
-- Final_Project_Milestone_5 Final Paper- DavisA.docx
+- Crime_Finder_Presentation.pptx
+- Crime_Finder_Paper.docx
