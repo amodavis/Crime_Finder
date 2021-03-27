@@ -250,7 +250,7 @@ Using ggmap to use Google maps to display geodetic information.  The API key is 
 \newline
 
 ```{r goog, include=FALSE}
-ggmap::register_google(key="AIzaSyC_xHA2f2uNcL0LdfRxlIH0dWTSWu88o3E")
+ggmap::register_google(key="")
 ```
 
 ## a) Tennessee
