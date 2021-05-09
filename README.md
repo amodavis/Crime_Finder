@@ -1,7 +1,7 @@
 # Crime Finder - A Predictive Analytics Project
 
 ## Description
-Analyzes national crime data and developes models to predict the likelihood that a specific criminal offense will occur using k-NN and Randon Forest algorithms.
+Analyzes national crime data and develops models to predict the likelihood that a specific criminal offense will occur using k-NN and Random Forest algorithms.
 
 ## Programming Languages
 - Python
